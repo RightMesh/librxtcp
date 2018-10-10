@@ -1,6 +1,6 @@
 # librxtcp
 
-[![](https://jitpack.io/v/RightMesh/librxtcp.svg)](https://jitpack.io/#RightMesh/librxtcp):
+[![](https://jitpack.io/v/RightMesh/librxtcp.svg)](https://jitpack.io/#RightMesh/librxtcp)
 
 RxTCP is a small single-threaded TCP library using Java NIO and RxJava. You can use this library
 in your project with gradle using jitpack 
