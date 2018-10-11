@@ -15,6 +15,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
+import java.nio.channels.IllegalBlockingModeException;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -119,7 +120,13 @@ public class RxTCP {
         }
 
         private SelectionKey doRegister(SelectableChannel channel, int op) throws ClosedChannelException {
-            SelectionKey key = channel.register(selector, op);
+            SelectionKey key = null;
+            try {
+                key = channel.register(selector, op);
+            } catch(IllegalBlockingModeException ibme) {
+                throw new ClosedChannelException();
+            }
+
             if (key.attachment() == null) {
                 key.attach(new NIOCallback());
             }
