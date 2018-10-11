@@ -12,6 +12,12 @@ dependencies {
 
     // RxJava library for reactive programming
     api 'io.reactivex.rxjava2:rxjava:2.1.1'
+
+    //tuples, triples, immutable pairs, etc.
+    testImplementation(group: 'org.apache.commons', name: 'commons-lang3', version: '3.4')
+
+    // jUnit
+    testImplementation 'junit:junit:4.12'
 }
 
 sourceCompatibility = JavaVersion.VERSION_1_8
