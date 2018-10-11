@@ -6,7 +6,6 @@ import io.reactivex.Flowable;
 import io.reactivex.Observable;
 import io.reactivex.ObservableEmitter;
 import io.reactivex.Single;
-import io.reactivex.SingleEmitter;
 import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subscribers.DisposableSubscriber;
 
@@ -45,6 +44,11 @@ public class RxTCP {
         }
     }
 
+    private interface RegisterCallback {
+        void onRegisterSuccess(SelectionKey key);
+        void onRegisterFail(Throwable t);
+    }
+
     private interface NIOConnectCallback {
         void onConnectEvent(SelectionKey key);
     }
@@ -75,12 +79,12 @@ public class RxTCP {
     private static class NIOEngine {
 
         private class RegisterJob {
-            SingleEmitter<SelectionKey> s;
+            RegisterCallback cb;
             SelectableChannel channel;
             int op;
 
-            RegisterJob(SingleEmitter s, SelectableChannel channel, int op) {
-                this.s = s;
+            RegisterJob(RegisterCallback cb, SelectableChannel channel, int op) {
+                this.cb = cb;
                 this.channel = channel;
                 this.op = op;
             }
@@ -112,9 +116,9 @@ public class RxTCP {
             while (registerJobQueue.size() > 0) {
                 RegisterJob job = registerJobQueue.poll();
                 try {
-                    job.s.onSuccess(doRegister(job.channel, job.op));
+                    job.cb.onRegisterSuccess(doRegister(job.channel, job.op));
                 } catch (IOException io) {
-                    job.s.onError(io);
+                    job.cb.onRegisterFail(io);
                 }
             }
         }
@@ -202,20 +206,18 @@ public class RxTCP {
          * @param op      event to listen to
          * @return the registered SelectionKey
          */
-        public Single<SelectionKey> register(SelectableChannel channel, int op) {
+        public void register(SelectableChannel channel, int op, RegisterCallback cb) {
             if (Thread.currentThread().equals(niothread)) {
                 try {
-                    return Single.just(doRegister(channel, op));
+                    cb.onRegisterSuccess(doRegister(channel, op));
                 } catch (ClosedChannelException cce) {
-                    return Single.error(cce);
+                    cb.onRegisterFail(cce);
                 }
             } else {
-                return Single.create(s -> {
-                    registerJobQueue.add(new RegisterJob(s, channel, op));
-                    if (selector != null) {
-                        selector.wakeup();
-                    }
-                });
+                registerJobQueue.add(new RegisterJob(cb, channel, op));
+                if (selector != null) {
+                    selector.wakeup();
+                }
             }
         }
 
@@ -291,27 +293,34 @@ public class RxTCP {
                     channel.configureBlocking(false);
                 } catch (IOException io) {
                     s.onError(io);
+                    return;
                 }
-                nio.register(channel, SelectionKey.OP_ACCEPT).subscribe(
-                        registeredKey -> {
-                            key = registeredKey;
+                nio.register(channel, SelectionKey.OP_ACCEPT, new RegisterCallback() {
+                            @Override
+                            public void onRegisterSuccess(SelectionKey registeredKey) {
+                                key = registeredKey;
 
-                            // accept callback
-                            NIOAcceptCallback acb = (key) -> {
-                                try {
-                                    s.onNext(factory.create(channel.accept()));
-                                } catch (IOException io) {
-                                    // can't accept this peer, silently ignore it
+                                // callback for accept event
+                                NIOAcceptCallback acb = (key) -> {
+                                    try {
+                                        s.onNext(factory.create(channel.accept()));
+                                    } catch (IOException io) {
+                                        // can't accept this peer, silently ignore it
+                                    }
+                                };
+
+                                // add callback to nio
+                                NIOCallback cb = (NIOCallback) key.attachment();
+                                if (cb != null) {
+                                    cb.a = acb;
                                 }
-                            };
-
-                            // add callback to nio
-                            NIOCallback cb = (NIOCallback) key.attachment();
-                            if (cb != null) {
-                                cb.a = acb;
                             }
-                        },
-                        s::onError);
+
+                            @Override
+                            public void onRegisterFail(Throwable t) {
+                                s.onError(t);
+                            }
+                        });
             }).observeOn(Schedulers.io());
         }
 
@@ -418,27 +427,37 @@ public class RxTCP {
                     NIOEngine nio = nio();
                     channel = SocketChannel.open();
                     channel.configureBlocking(false);
-                    nio.register(channel, SelectionKey.OP_CONNECT).subscribe(
-                            registeredKey -> {
-                                // tag the connect callback
-                                ((NIOCallback) registeredKey.attachment()).c = (key) -> {
-                                    key.interestOps(0);
-                                    ((NIOCallback) key.attachment()).c = null;
-                                    try {
-                                        if (channel.finishConnect()) {
-                                            s.onSuccess(factory.create(this.channel));
-                                        } else {
+                    nio.register(channel, SelectionKey.OP_CONNECT, new RegisterCallback() {
+                                @Override
+                                public void onRegisterSuccess(SelectionKey registeredKey) {
+                                    // tag the connect callback
+                                    ((NIOCallback) registeredKey.attachment()).c = (key) -> {
+                                        key.interestOps(0);
+                                        ((NIOCallback) key.attachment()).c = null;
+                                        try {
+                                            if (channel.finishConnect()) {
+                                                s.onSuccess(factory.create(channel));
+                                            } else {
+                                                s.onError(new Throwable("could not connect"));
+                                            }
+                                        } catch (IOException io) {
                                             s.onError(new Throwable("could not connect"));
                                         }
-                                    } catch (IOException io) {
-                                        s.onError(new Throwable("could not connect"));
-                                    }
-                                };
+                                    };
 
-                                // initiate connection
-                                channel.connect(new InetSocketAddress(host, port));
-                            }
-                    );
+                                    // initiate connection
+                                    try {
+                                        channel.connect(new InetSocketAddress(host, port));
+                                    } catch(IOException io) {
+                                        s.onError(io);
+                                    }
+                                }
+
+                                @Override
+                                public void onRegisterFail(Throwable t) {
+                                    s.onError(t);
+                                }
+                            });
                 } catch (IOException io) {
                     s.onError(new Throwable("could not connect"));
                 }
@@ -913,18 +932,24 @@ public class RxTCP {
                 }
 
                 if (key == null) {
-                    nio.register(channel, op).subscribe(
-                            registeredKey -> {
-                                key = registeredKey;
-                                if (o != null) {
-                                    if (op == SelectionKey.OP_READ) {
-                                        ((NIOCallback) key.attachment()).r = (NIOReadCallback) o;
-                                    } else {
-                                        ((NIOCallback) key.attachment()).w = (NIOWriteCallback) o;
+                    nio.register(channel, op, new RegisterCallback() {
+                                @Override
+                                public void onRegisterSuccess(SelectionKey registeredKey) {
+                                    key = registeredKey;
+                                    if (o != null) {
+                                        if (op == SelectionKey.OP_READ) {
+                                            ((NIOCallback) key.attachment()).r = (NIOReadCallback) o;
+                                        } else {
+                                            ((NIOCallback) key.attachment()).w = (NIOWriteCallback) o;
+                                        }
                                     }
                                 }
-                            },
-                            e -> key = null);
+
+                                @Override
+                                public void onRegisterFail(Throwable t) {
+                                    key = null;
+                                }
+                            });
                     return;
                 }
 
