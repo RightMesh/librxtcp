@@ -498,6 +498,12 @@ public class RxTCP {
         boolean hasObserver;
         boolean orderClose;
 
+        // info
+        String localHost;
+        int    localPort;
+        String remoteHost;
+        int    remotePort;
+
         /**
          * Constructor for a Reactive Connection.
          *
@@ -512,6 +518,49 @@ public class RxTCP {
             prepareWritePipeline();
             orderClose = false;
             hasObserver = false;
+
+            localHost  = channel.getLocalAddress().toString()
+                    .replace("/", "");
+            remoteHost = channel.getRemoteAddress().toString()
+                    .replace("/", "");
+            localPort  = channel.socket().getLocalPort();
+            remotePort = channel.socket().getPort();
+        }
+
+        /**
+         * return local host address for this connection
+         *
+         * @return tring
+         */
+        public String getLocalHost() {
+            return localHost;
+        }
+
+        /**
+         * return remote host address for this connection
+         *
+         * @return tring
+         */
+        public String getRemoteHost() {
+            return remoteHost;
+        }
+
+        /**
+         * return local port for this connection
+         *
+         * @return int
+         */
+        public int getLocalPort() {
+            return localPort;
+        }
+
+        /**
+         * return remote port for this connection
+         *
+         * @return int
+         */
+        public int getRemotePort() {
+            return remotePort;
         }
 
         /**
