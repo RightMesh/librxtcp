@@ -238,23 +238,13 @@ public class RxTCP {
     /**
      * A Non-Blocking Reactive TCP Server using NIOEngine event loop.
      */
-    public static class Server {
+    public static class Server<T extends Connection> {
 
         private NIOEngine nio;
         private int port;
-        private ConnectionFactory factory;
+        private ConnectionFactory<T> factory;
         private ServerSocketChannel channel;
         private SelectionKey key;
-
-        /**
-         * Default Constructor.
-         *
-         * @param port port to listen to
-         */
-        public Server(int port) {
-            this.port = port;
-            this.factory = defaultFactory;
-        }
 
         /**
          * Constructor.
@@ -262,8 +252,8 @@ public class RxTCP {
          * @param port    port to listen to
          * @param factory Connection factory
          */
-        public Server(int port, ConnectionFactory factory) {
-            this(port);
+        public Server(int port, ConnectionFactory<T> factory) {
+            this.port = port;
             this.factory = factory;
         }
 
@@ -274,7 +264,7 @@ public class RxTCP {
          *
          * @return an Observable to keep track of every new Connection
          */
-        public Observable<Connection> start() {
+        public Observable<T> start() {
             if (channel != null) {
                 return Observable.error(new Throwable("Server already started"));
             }
@@ -285,7 +275,7 @@ public class RxTCP {
                 return Observable.error(new Throwable("can't start NIO Engine"));
             }
 
-            return Observable.<Connection>create(s -> {
+            return Observable.<T>create(s -> {
                 try {
                     channel = ServerSocketChannel.open();
                     InetSocketAddress listenAddress = new InetSocketAddress(port);
@@ -303,7 +293,9 @@ public class RxTCP {
                                 // callback for accept event
                                 NIOAcceptCallback acb = (key) -> {
                                     try {
-                                        s.onNext(factory.create(channel.accept()));
+                                        T c = factory.create();
+                                        c.setChannel(channel.accept());
+                                        s.onNext(c);
                                     } catch (IOException io) {
                                         // can't accept this peer, silently ignore it
                                     }
@@ -354,28 +346,14 @@ public class RxTCP {
     /**
      * ConnectionRequest is used to create a connection proactively.
      */
-    public static class ConnectionRequest {
+    public static class ConnectionRequest<T extends Connection> {
 
-        private NIOEngine nio;
         private String host;
         private int port;
-        private ConnectionFactory factory;
+        private ConnectionFactory<T> factory;
         private SocketChannel channel;
         private int retry;
         private int retryTimeout;
-
-        /**
-         * Create a connection request for a given host and port. By default it will create
-         * a {@see Connection} object upon connection.
-         *
-         * @param host to connect to
-         * @param port to connect to
-         */
-        public ConnectionRequest(String host, int port) {
-            this.host = host;
-            this.port = port;
-            this.factory = defaultFactory;
-        }
 
         /**
          * Create a connection request for a given host and port with a special ConnectionFactory
@@ -385,7 +363,7 @@ public class RxTCP {
          * @param port    to connect to
          * @param factory to create the Connection object
          */
-        public ConnectionRequest(String host, int port, ConnectionFactory factory) {
+        public ConnectionRequest(String host, int port, ConnectionFactory<T> factory) {
             this.host = host;
             this.port = port;
             this.factory = factory;
@@ -411,18 +389,12 @@ public class RxTCP {
          *
          * @return a new Connection upon success, an error otherwise
          */
-        public Single<Connection> connect() {
+        public Single<T> connect() {
             if (channel != null) {
                 return Single.error(new Throwable("connection already connected"));
             }
 
-            try {
-                this.nio = nio();
-            } catch (IOException io) {
-                return Single.error(new Throwable("can't start NIOEngine"));
-            }
-
-            return Single.<Connection>create(s -> {
+            return Single.<T>create(s -> {
                 try {
                     NIOEngine nio = nio();
                     channel = SocketChannel.open();
@@ -436,7 +408,9 @@ public class RxTCP {
                                         ((NIOCallback) key.attachment()).c = null;
                                         try {
                                             if (channel.finishConnect()) {
-                                                s.onSuccess(factory.create(channel));
+                                                T c = factory.create();
+                                                c.setChannel(channel);
+                                                s.onSuccess(c);
                                             } else {
                                                 s.onError(new Throwable("could not connect"));
                                             }
@@ -469,14 +443,9 @@ public class RxTCP {
      * Connection factory, this is used by the server to create a new Connection whenever a client
      * is connected.
      */
-    public interface ConnectionFactory {
-        Connection create(SocketChannel channel) throws IOException;
+    public interface ConnectionFactory<T extends Connection> {
+        T create() throws IOException;
     }
-
-    /**
-     * The default factory instantiate a Connection.
-     */
-    private static ConnectionFactory defaultFactory = Connection::new;
 
     /**
      * Class Connection to send and receive ByteBuffer to a peer over TCP in a reactive way.
@@ -510,7 +479,7 @@ public class RxTCP {
          * @param channel socket of a connected peer
          * @throws IOException if the socket cannot be tuned in non-blocking mode
          */
-        public Connection(SocketChannel channel) throws IOException {
+        public void setChannel(SocketChannel channel) throws IOException {
             this.nio = nio();
             this.channel = channel;
             channel.configureBlocking(false);
@@ -1052,4 +1021,22 @@ public class RxTCP {
                     + ":" + channel.socket().getLocalPort();
         }
     }
+
+    /**
+     * The default factory instantiate a Connection.
+     */
+    private static ConnectionFactory defaultFactory = Connection::new;
+
+    public static class SimpleServer extends Server<Connection> {
+        public SimpleServer(int port) {
+            super(port, defaultFactory);
+        }
+    }
+
+    public static class SimpleConnectionRequest extends ConnectionRequest<Connection> {
+        public SimpleConnectionRequest(String host, int port) {
+            super(host, port, defaultFactory);
+        }
+    }
+
 }
