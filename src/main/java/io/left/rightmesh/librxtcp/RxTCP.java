@@ -250,6 +250,16 @@ public class RxTCP {
          * Constructor.
          *
          * @param port    port to listen to
+         */
+        public Server(int port) {
+            this.port = port;
+            this.factory = defaultFactory;
+        }
+
+        /**
+         * Constructor.
+         *
+         * @param port    port to listen to
          * @param factory Connection factory
          */
         public Server(int port, ConnectionFactory<T> factory) {
@@ -354,6 +364,19 @@ public class RxTCP {
         private SocketChannel channel;
         private int retry;
         private int retryTimeout;
+
+        /**
+         * Create a connection request for a given host and port with a special ConnectionFactory
+         * to create the Connection object upon connection.
+         *
+         * @param host    to connect to
+         * @param port    to connect to
+         */
+        public ConnectionRequest(String host, int port) {
+            this.host = host;
+            this.port = port;
+            this.factory = defaultFactory;
+        }
 
         /**
          * Create a connection request for a given host and port with a special ConnectionFactory
