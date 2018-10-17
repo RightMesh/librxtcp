@@ -511,10 +511,9 @@ public class RxTCP {
             orderClose = false;
             hasObserver = false;
 
-            localHost  = channel.getLocalAddress().toString()
-                    .replace("/", "");
-            remoteHost = channel.getRemoteAddress().toString()
-                    .replace("/", "");
+
+            localHost  = channel.socket().getLocalAddress().getHostAddress();
+            remoteHost = channel.socket().getInetAddress().getHostAddress();
             localPort  = channel.socket().getLocalPort();
             remotePort = channel.socket().getPort();
         }
