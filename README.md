@@ -25,7 +25,7 @@ To run a TCP server on a given port just do the following:
 RxTCP.Server<RxTCP.Connection> s = new RxTCP.Server<>(port);
 s.start().subscribe(
         connection -> {
-            /* connection is a new client socket */
+            /* connection is a new RxTCP.Connection client */
         },
         e -> {
             /* the server has stopped */
