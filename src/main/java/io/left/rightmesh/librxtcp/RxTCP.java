@@ -235,10 +235,7 @@ public class RxTCP {
         }
     }
 
-    /**
-     * A Non-Blocking Reactive TCP Server using NIOEngine event loop.
-     */
-    public static class Server<T extends Connection> {
+    public static class Server<T extends Connection>  implements ServerAPI {
 
         private NIOEngine nio;
         private int port;
@@ -267,16 +264,17 @@ public class RxTCP {
             this.factory = factory;
         }
 
-        /**
-         * create a new Observable that whenever subscribed to, starts the server and
-         * emits a new Connection every time a client connects to the server.
-         * The new connection event is emitted in a new thread so as not to block the NIO thread.
-         *
-         * @return an Observable to keep track of every new Connection
-         */
+        public int getPort() {
+            if(channel != null) {
+                return channel.socket().getLocalPort();
+            }
+            return -1;
+        }
+
+        @Override
         public Observable<T> start() {
             if (channel != null) {
-                return Observable.error(new Throwable("Server already started"));
+                return Observable.error(new Throwable("ServerAPI already started"));
             }
 
             try {
@@ -326,9 +324,6 @@ public class RxTCP {
             }).observeOn(Schedulers.io());
         }
 
-        /**
-         * stop the server from listening for connection.
-         */
         public void stop() {
             if (channel == null) {
                 return;
@@ -353,10 +348,7 @@ public class RxTCP {
         }
     }
 
-    /**
-     * ConnectionRequest is used to create a connection proactively.
-     */
-    public static class ConnectionRequest<T extends Connection> {
+    public static class ConnectionRequest<T extends Connection> implements ConnectionRequestAPI {
 
         private String host;
         private int port;
@@ -404,14 +396,6 @@ public class RxTCP {
             return this;
         }
 
-
-        /**
-         * connect() will perform the connection logic and return a new Connection upon success
-         * or an error if it fails. The onSuccess event is emitted in a new Thread so as not to
-         * block the NIO Thread.
-         *
-         * @return a new Connection upon success, an error otherwise
-         */
         public Single<T> connect() {
             if (channel != null) {
                 return Single.error(new Throwable("connection already connected"));
@@ -463,17 +447,9 @@ public class RxTCP {
     }
 
     /**
-     * Connection factory, this is used by the server to create a new Connection whenever a client
-     * is connected.
-     */
-    public interface ConnectionFactory<T extends Connection> {
-        T create() throws IOException;
-    }
-
-    /**
      * Class Connection to send and receive ByteBuffer to a peer over TCP in a reactive way.
      */
-    public static class Connection {
+    public static class Connection implements ConnectionAPI {
 
         // lock
         private final ReentrantLock lock = new ReentrantLock();
@@ -502,7 +478,7 @@ public class RxTCP {
          * @param channel socket of a connected peer
          * @throws IOException if the socket cannot be tuned in non-blocking mode
          */
-        public void setChannel(SocketChannel channel) throws IOException {
+        void setChannel(SocketChannel channel) throws IOException {
             this.nio = nio();
             this.channel = channel;
             channel.configureBlocking(false);
@@ -518,52 +494,32 @@ public class RxTCP {
             remotePort = channel.socket().getPort();
         }
 
-        /**
-         * return local host address for this connection
-         *
-         * @return tring
-         */
+        @Override
         public String getLocalHost() {
             return localHost;
         }
 
-        /**
-         * return remote host address for this connection
-         *
-         * @return tring
-         */
+        @Override
         public String getRemoteHost() {
             return remoteHost;
         }
 
-        /**
-         * return local port for this connection
-         *
-         * @return int
-         */
+        @Override
         public int getLocalPort() {
             return localPort;
         }
 
-        /**
-         * return remote port for this connection
-         *
-         * @return int
-         */
+        @Override
         public int getRemotePort() {
             return remotePort;
         }
 
-        /**
-         * Close the current connection.
-         */
+        @Override
         public void closeNow() {
             nio.doInNIOThread(this::cleanup);
         }
 
-        /**
-         * Close the current connection.
-         */
+        @Override
         public void closeJobsDone() {
             orderClose = true;
         }
@@ -601,17 +557,7 @@ public class RxTCP {
             }
         }
 
-        /**
-         * return an Observable for the stream of ByteBuffer read from the socket. It will not be
-         * reading the socket until an Observer subscribed to the stream. Note that there can be
-         * only one Observer at any given time!
-         * <p>
-         * <p>The subscriber should try to return as fast as possible as the onNext() event is
-         * emitted in the NIO thread. No read nor write operation can be performed until the method
-         * returns
-         *
-         * @return Observable ByteBuffer stream read from the socket
-         */
+        @Override
         public Observable<ByteBuffer> recv() {
             if (hasObserver) {
                 return Observable.error(new Throwable("an observer is already subscribed"));
@@ -645,6 +591,7 @@ public class RxTCP {
             });
         }
 
+        @Override
         public void send(byte[] buffer) {
             if((buffer == null) || (orderClose)){
                 return;
@@ -652,6 +599,7 @@ public class RxTCP {
             send(ByteBuffer.wrap(buffer));
         }
 
+        @Override
         public void send(ByteBuffer buffer) {
             if((buffer == null) || (orderClose)){
                 return;
@@ -659,6 +607,7 @@ public class RxTCP {
             send(Flowable.just(buffer));
         }
 
+        @Override
         public void send(Flowable<ByteBuffer> job) {
             if((job == null) || (orderClose)){
                 return;
@@ -667,14 +616,16 @@ public class RxTCP {
             turnOnNIOEvent(SelectionKey.OP_WRITE, null); // will wake up to check the queue
         }
 
-        public JobHandle order(byte[] buffer) {
+        @Override
+        public TrackOrder order(byte[] buffer) {
             if ((buffer == null) || orderClose) {
                 return new NullHandle("channel has been closed");
             }
             return order(ByteBuffer.wrap(buffer));
         }
 
-        public JobHandle order(ByteBuffer buffer) {
+        @Override
+        public TrackOrder order(ByteBuffer buffer) {
             if ((buffer == null) || orderClose) {
                 return new NullHandle("channel has been closed");
             }
@@ -688,7 +639,8 @@ public class RxTCP {
          * @param job Flowable of ByteBuffer to sendBundle over the socket
          * @return an Observable to keep track of bytes sent
          */
-        public JobHandle order(Flowable<ByteBuffer> job) {
+        @Override
+        public TrackOrder order(Flowable<ByteBuffer> job) {
             if ((job == null) || orderClose) {
                 return new JobHandle(null) {
                     @Override
@@ -700,7 +652,7 @@ public class RxTCP {
             return new JobHandle(job);
         }
 
-        public class JobHandle {
+        public class JobHandle implements TrackOrder {
             Flowable<ByteBuffer> job;
             JobOrder order;
             boolean cancelled = false;
