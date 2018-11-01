@@ -114,7 +114,7 @@ You can send ByteBuffer like so:
 
 ```java
     ByteBuffer b = ByteBuffer.wrap("Hello World".getBytes());
-    con.order(b).observe().subscribe(
+    con.order(b).track().subscribe(
         i -> {
             /* track the number of bytes sent from this order */
         },
@@ -126,12 +126,12 @@ You can send ByteBuffer like so:
         }
 ```
 
-Every order returns an JobHandle that you can use to track the order with observe(). If you do not subscribe to this Observable, no packets are sent.
+Every order returns an JobHandle that you can use to track the order with track(). If you do not subscribe to this Observable, no packets are sent.
 you can also order a Flowable:
 
 ```java
     ByteBuffer b = Flowable.just(ByteBuffer.wrap("Hello World".getBytes()));
-    con.order(b).observe().subscribe(
+    con.order(b).track().subscribe(
         i -> {
             /* track the number of bytes sent from this order */
         },
@@ -149,7 +149,7 @@ You can also cancel an order using the JobHandle like so:
 ```java
     ByteBuffer b = Flowable.just(ByteBuffer.wrap("Hello World".getBytes()));
     JobHandle handle = con.order(b);
-    handle.observe().subscribe(
+    handle.track().subscribe(
         i -> {
             /* track the number of bytes sent from this order */
         },

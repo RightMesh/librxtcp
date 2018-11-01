@@ -634,7 +634,7 @@ public class RxTCP {
 
         /**
          * Order a job to be transmitted. It will not actually be queued until an Observer
-         * subscribed to the jobhandle observe() method.
+         * subscribed to the jobhandle track() method.
          *
          * @param job Flowable of ByteBuffer to sendBundle over the socket
          * @return an Observable to keep track of bytes sent
@@ -644,7 +644,7 @@ public class RxTCP {
             if ((job == null) || orderClose) {
                 return new JobHandle(null) {
                     @Override
-                    public Observable<Integer> observe() {
+                    public Observable<Integer> track() {
                         return Observable.error(new Throwable("channel has been closed"));
                     }
                 };
@@ -663,7 +663,7 @@ public class RxTCP {
                 this.order = null;
             }
 
-            public Observable<Integer> observe() {
+            public Observable<Integer> track() {
                 if (cancelled) {
                     return Observable.error(new Throwable("cancelled order"));
                 }
@@ -706,7 +706,7 @@ public class RxTCP {
             }
 
             @Override
-            public Observable<Integer> observe() {
+            public Observable<Integer> track() {
                 return Observable.error(new Throwable(msg));
             }
 
@@ -786,7 +786,7 @@ public class RxTCP {
                             @Override
                             protected void onStart() {
                                 if (cancelled) {
-                                    dispose();
+                                    cancel();
                                     onError(new Throwable("cancelled order"));
                                 } else {
                                     request(1);
@@ -796,7 +796,7 @@ public class RxTCP {
                             @Override
                             public void onNext(ByteBuffer byteBuffer) {
                                 if (cancelled) {
-                                    dispose();
+                                    cancel();
                                     onError(new Throwable("cancelled order"));
                                     return;
                                 }
@@ -813,7 +813,7 @@ public class RxTCP {
                                 }).subscribe(
                                         () -> request(1),
                                         e -> { // error sending buffer
-                                            dispose();
+                                            cancel();
                                             onError(e);
                                         }
                                 );
@@ -848,7 +848,7 @@ public class RxTCP {
          * <p>
          * <p>After waking up it checks the queue and takes a JobOrder if any. JobOrder is a simple
          * Flowable of ByteBuffer. the NIOTHREAD (thread use for NIO select) subscribes to it in
-         * order to observe the ByteBuffer sequence. Since the sending of ByteBuffer is
+         * order to track the ByteBuffer sequence. Since the sending of ByteBuffer is
          * asynchronous, we use request() after every successful transmission to pull the insert
          * buffer from the source.
          * <p>

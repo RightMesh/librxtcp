@@ -13,7 +13,7 @@ import io.reactivex.Observable;
 public interface ConnectionAPI {
 
     interface TrackOrder {
-        Observable<Integer> observe();
+        Observable<Integer> track();
 
         boolean cancel();
     }
@@ -75,7 +75,7 @@ public interface ConnectionAPI {
 
     /**
      * Order a job to be transmitted. It will not actually be queued until an Observer
-     * subscribed to the jobhandle observe() method.
+     * subscribed to the jobhandle track() method.
      *
      * @param job Flowable of ByteBuffer to sendBundle over the socket
      * @return an Observable to keep track of bytes sent
