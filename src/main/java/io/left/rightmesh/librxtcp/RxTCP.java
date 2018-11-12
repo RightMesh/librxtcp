@@ -46,6 +46,7 @@ public class RxTCP {
 
     private interface RegisterCallback {
         void onRegisterSuccess(SelectionKey key);
+
         void onRegisterFail(Throwable t);
     }
 
@@ -127,7 +128,7 @@ public class RxTCP {
             SelectionKey key = null;
             try {
                 key = channel.register(selector, op);
-            } catch(IllegalBlockingModeException ibme) {
+            } catch (IllegalBlockingModeException ibme) {
                 throw new ClosedChannelException();
             }
 
@@ -235,7 +236,7 @@ public class RxTCP {
         }
     }
 
-    public static class Server<T extends Connection>  implements ServerAPI {
+    public static class Server<T extends Connection> implements ServerAPI {
 
         private NIOEngine nio;
         private int port;
@@ -246,7 +247,7 @@ public class RxTCP {
         /**
          * Constructor.
          *
-         * @param port    port to listen to
+         * @param port port to listen to
          */
         public Server(int port) {
             this.port = port;
@@ -265,7 +266,7 @@ public class RxTCP {
         }
 
         public int getPort() {
-            if(channel != null) {
+            if (channel != null) {
                 return channel.socket().getLocalPort();
             }
             return -1;
@@ -294,33 +295,33 @@ public class RxTCP {
                     return;
                 }
                 nio.register(channel, SelectionKey.OP_ACCEPT, new RegisterCallback() {
-                            @Override
-                            public void onRegisterSuccess(SelectionKey registeredKey) {
-                                key = registeredKey;
+                    @Override
+                    public void onRegisterSuccess(SelectionKey registeredKey) {
+                        key = registeredKey;
 
-                                // callback for accept event
-                                NIOAcceptCallback acb = (key) -> {
-                                    try {
-                                        T c = factory.create();
-                                        c.setChannel(channel.accept());
-                                        s.onNext(c);
-                                    } catch (IOException io) {
-                                        // can't accept this peer, silently ignore it
-                                    }
-                                };
-
-                                // add callback to nio
-                                NIOCallback cb = (NIOCallback) key.attachment();
-                                if (cb != null) {
-                                    cb.a = acb;
-                                }
+                        // callback for accept event
+                        NIOAcceptCallback acb = (key) -> {
+                            try {
+                                T c = factory.create();
+                                c.setChannel(channel.accept());
+                                s.onNext(c);
+                            } catch (IOException io) {
+                                // can't accept this peer, silently ignore it
                             }
+                        };
 
-                            @Override
-                            public void onRegisterFail(Throwable t) {
-                                s.onError(t);
-                            }
-                        });
+                        // add callback to nio
+                        NIOCallback cb = (NIOCallback) key.attachment();
+                        if (cb != null) {
+                            cb.a = acb;
+                        }
+                    }
+
+                    @Override
+                    public void onRegisterFail(Throwable t) {
+                        s.onError(t);
+                    }
+                });
             }).observeOn(Schedulers.io());
         }
 
@@ -361,8 +362,8 @@ public class RxTCP {
          * Create a connection request for a given host and port with a special ConnectionFactory
          * to create the Connection object upon connection.
          *
-         * @param host    to connect to
-         * @param port    to connect to
+         * @param host to connect to
+         * @param port to connect to
          */
         public ConnectionRequest(String host, int port) {
             this.host = host;
@@ -407,38 +408,38 @@ public class RxTCP {
                     channel = SocketChannel.open();
                     channel.configureBlocking(false);
                     nio.register(channel, SelectionKey.OP_CONNECT, new RegisterCallback() {
-                                @Override
-                                public void onRegisterSuccess(SelectionKey registeredKey) {
-                                    // tag the connect callback
-                                    ((NIOCallback) registeredKey.attachment()).c = (key) -> {
-                                        key.interestOps(0);
-                                        ((NIOCallback) key.attachment()).c = null;
-                                        try {
-                                            if (channel.finishConnect()) {
-                                                T c = factory.create();
-                                                c.setChannel(channel);
-                                                s.onSuccess(c);
-                                            } else {
-                                                s.onError(new Throwable("could not connect"));
-                                            }
-                                        } catch (IOException io) {
-                                            s.onError(new Throwable("could not connect"));
-                                        }
-                                    };
-
-                                    // initiate connection
-                                    try {
-                                        channel.connect(new InetSocketAddress(host, port));
-                                    } catch(IOException io) {
-                                        s.onError(io);
+                        @Override
+                        public void onRegisterSuccess(SelectionKey registeredKey) {
+                            // tag the connect callback
+                            ((NIOCallback) registeredKey.attachment()).c = (key) -> {
+                                key.interestOps(0);
+                                ((NIOCallback) key.attachment()).c = null;
+                                try {
+                                    if (channel.finishConnect()) {
+                                        T c = factory.create();
+                                        c.setChannel(channel);
+                                        s.onSuccess(c);
+                                    } else {
+                                        s.onError(new Throwable("could not connect"));
                                     }
+                                } catch (IOException io) {
+                                    s.onError(new Throwable("could not connect"));
                                 }
+                            };
 
-                                @Override
-                                public void onRegisterFail(Throwable t) {
-                                    s.onError(t);
-                                }
-                            });
+                            // initiate connection
+                            try {
+                                channel.connect(new InetSocketAddress(host, port));
+                            } catch (IOException io) {
+                                s.onError(io);
+                            }
+                        }
+
+                        @Override
+                        public void onRegisterFail(Throwable t) {
+                            s.onError(t);
+                        }
+                    });
                 } catch (IOException io) {
                     s.onError(new Throwable("could not connect"));
                 }
@@ -468,9 +469,9 @@ public class RxTCP {
 
         // info
         String localHost;
-        int    localPort;
+        int localPort;
         String remoteHost;
-        int    remotePort;
+        int remotePort;
 
         /**
          * Constructor for a Reactive Connection.
@@ -488,9 +489,9 @@ public class RxTCP {
             hasObserver = false;
 
 
-            localHost  = channel.socket().getLocalAddress().getHostAddress();
+            localHost = channel.socket().getLocalAddress().getHostAddress();
             remoteHost = channel.socket().getInetAddress().getHostAddress();
-            localPort  = channel.socket().getLocalPort();
+            localPort = channel.socket().getLocalPort();
             remotePort = channel.socket().getPort();
         }
 
@@ -593,7 +594,7 @@ public class RxTCP {
 
         @Override
         public void send(byte[] buffer) {
-            if((buffer == null) || (orderClose)){
+            if ((buffer == null) || (orderClose)) {
                 return;
             }
             send(ByteBuffer.wrap(buffer));
@@ -601,7 +602,7 @@ public class RxTCP {
 
         @Override
         public void send(ByteBuffer buffer) {
-            if((buffer == null) || (orderClose)){
+            if ((buffer == null) || (orderClose)) {
                 return;
             }
             send(Flowable.just(buffer));
@@ -609,7 +610,7 @@ public class RxTCP {
 
         @Override
         public void send(Flowable<ByteBuffer> job) {
-            if((job == null) || (orderClose)){
+            if ((job == null) || (orderClose)) {
                 return;
             }
             jobOrderQueue.add(new JobOrder(null, job));
@@ -721,14 +722,22 @@ public class RxTCP {
             if (jobOrderQueue.size() > 0) {
                 // queue is not empty, we perform the job
                 currentOrder = jobOrderQueue.poll();
-                if(currentOrder != null) {
+                if (currentOrder != null) {
                     currentOrder.doJob();
                 } else {
                     cleanup();
                 }
-            } else if(orderClose) {
+            } else if (orderClose) {
                 cleanup();
             }
+        }
+
+
+        /**
+         * Simple callback akin to Completable.
+         */
+        private interface TaskCompletedCallback {
+            void completed(Throwable error);
         }
 
         /**
@@ -743,7 +752,7 @@ public class RxTCP {
 
             // buffers
             private ByteBuffer sendBuffer;
-            private CompletableEmitter sendBufferTask;
+            private TaskCompletedCallback sendBufferTask;
 
 
             JobOrder(ObservableEmitter<Integer> trackOrder, Flowable<ByteBuffer> job) {
@@ -754,16 +763,16 @@ public class RxTCP {
 
             void sent(int nbBytes) {
                 bytesSent += nbBytes;
-                if(trackOrder != null) {
+                if (trackOrder != null) {
                     trackOrder.onNext(bytesSent);
                 }
                 if (!sendBuffer.hasRemaining()) {
-                    sendBufferTask.onComplete();
+                    sendBufferTask.completed(null);
                 }
             }
 
             void error(Throwable throwable) {
-                sendBufferTask.onError(throwable);
+                sendBufferTask.completed(throwable);
             }
 
             void cancel() {
@@ -773,7 +782,7 @@ public class RxTCP {
             void doJob() {
                 if (cancelled) {
                     currentOrder = null;
-                    if(trackOrder != null) {
+                    if (trackOrder != null) {
                         trackOrder.onError(new Throwable("Order cancelled"));
                     }
                     turnOnNIOEvent(SelectionKey.OP_WRITE, null); // check queue
@@ -783,8 +792,18 @@ public class RxTCP {
                 // append an empty element at the end to delay the onComplete()
                 job.concatWith(Flowable.just(ByteBuffer.allocate(0)))
                         .subscribe(new DisposableSubscriber<ByteBuffer>() {
+                            TaskCompletedCallback onCompleted = (error) -> {
+                                    if (error == null) {
+                                        request(1);
+                                    } else {
+                                        cancel();
+                                        onError(error);
+                                    }
+                                };
+                            
                             @Override
                             protected void onStart() {
+                                sendBufferTask = onCompleted;
                                 if (cancelled) {
                                     cancel();
                                     onError(new Throwable("cancelled order"));
@@ -806,23 +825,14 @@ public class RxTCP {
                                     return;
                                 }
 
-                                Completable.create(t -> {
-                                    sendBufferTask = t;
-                                    sendBuffer = byteBuffer;
-                                    turnOnNIOEvent(SelectionKey.OP_WRITE, null);
-                                }).subscribe(
-                                        () -> request(1),
-                                        e -> { // error sending buffer
-                                            cancel();
-                                            onError(e);
-                                        }
-                                );
+                                sendBuffer = byteBuffer;
+                                turnOnNIOEvent(SelectionKey.OP_WRITE, null);
                             }
 
                             @Override
                             public void onError(Throwable throwable) {
                                 currentOrder = null;
-                                if(trackOrder != null) {
+                                if (trackOrder != null) {
                                     trackOrder.onError(throwable);
                                 }
                                 turnOnNIOEvent(SelectionKey.OP_WRITE, null); // will check the queue
@@ -831,7 +841,7 @@ public class RxTCP {
                             @Override
                             public void onComplete() {
                                 currentOrder = null;
-                                if(trackOrder != null) {
+                                if (trackOrder != null) {
                                     trackOrder.onComplete();
                                 }
                                 turnOnNIOEvent(SelectionKey.OP_WRITE, null); // will check the queue
@@ -925,23 +935,23 @@ public class RxTCP {
 
                 if (key == null) {
                     nio.register(channel, op, new RegisterCallback() {
-                                @Override
-                                public void onRegisterSuccess(SelectionKey registeredKey) {
-                                    key = registeredKey;
-                                    if (o != null) {
-                                        if (op == SelectionKey.OP_READ) {
-                                            ((NIOCallback) key.attachment()).r = (NIOReadCallback) o;
-                                        } else {
-                                            ((NIOCallback) key.attachment()).w = (NIOWriteCallback) o;
-                                        }
-                                    }
+                        @Override
+                        public void onRegisterSuccess(SelectionKey registeredKey) {
+                            key = registeredKey;
+                            if (o != null) {
+                                if (op == SelectionKey.OP_READ) {
+                                    ((NIOCallback) key.attachment()).r = (NIOReadCallback) o;
+                                } else {
+                                    ((NIOCallback) key.attachment()).w = (NIOWriteCallback) o;
                                 }
+                            }
+                        }
 
-                                @Override
-                                public void onRegisterFail(Throwable t) {
-                                    key = null;
-                                }
-                            });
+                        @Override
+                        public void onRegisterFail(Throwable t) {
+                            key = null;
+                        }
+                    });
                     return;
                 }
 
