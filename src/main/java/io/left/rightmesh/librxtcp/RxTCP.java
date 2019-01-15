@@ -161,6 +161,7 @@ public class RxTCP {
                             }
 
                             try {
+                                System.out.println("key="+key);
                                 Object o = key.attachment();
                                 if ((o != null) && (o instanceof NIOCallback)) {
                                     NIOCallback cb = (NIOCallback) o;
@@ -186,6 +187,7 @@ public class RxTCP {
                     }
                 } catch (IOException io) {
                     // do nothing
+                    // todo if we have such an exception, should restart the NIO thread
                 } finally {
                     try {
                         selector.close();
@@ -196,7 +198,6 @@ public class RxTCP {
                 }
             }).start();
         }
-
 
         /* NIO API */
 
@@ -420,17 +421,21 @@ public class RxTCP {
                                         c.setChannel(channel);
                                         s.onSuccess(c);
                                     } else {
-                                        s.onError(new Throwable("could not connect"));
+                                        if(!s.isDisposed()) {
+                                            s.onError(new Throwable("could not connect"));
+                                        }
                                     }
-                                } catch (IOException io) {
-                                    s.onError(new Throwable("could not connect"));
+                                } catch (Exception io) {
+                                    if(!s.isDisposed()) {
+                                        s.onError(io);
+                                    }
                                 }
                             };
 
                             // initiate connection
                             try {
                                 channel.connect(new InetSocketAddress(host, port));
-                            } catch (IOException io) {
+                            } catch (Exception io) {
                                 s.onError(io);
                             }
                         }
@@ -441,7 +446,7 @@ public class RxTCP {
                         }
                     });
                 } catch (IOException io) {
-                    s.onError(new Throwable("could not connect"));
+                    s.onError(io);
                 }
             }).observeOn(Schedulers.io());
         }
