@@ -161,7 +161,6 @@ public class RxTCP {
                             }
 
                             try {
-                                System.out.println("key="+key);
                                 Object o = key.attachment();
                                 if ((o != null) && (o instanceof NIOCallback)) {
                                     NIOCallback cb = (NIOCallback) o;
